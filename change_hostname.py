@@ -44,11 +44,11 @@ def change_hostname(name):
 	os.system("scutil --set ComputerName " + name)
 	os.system("scutil --set LocalHostName " + name)
 
-# # Unbind machine from LV AD
+# # Unbind machine from AD
 # def unbind(username, password)
 # 	os.system("dsconfig -f -r -u " + username + " -p " + password)
 
-# # Bind machine to NM AD
+# # Bind machine to AD
 # def bind(computername,username,password)
 # 	os.system("dsconfigad -a " + computername + " -domain " + domain +  " -u " + username + " -p " + password + " -ou " + ou)
 
