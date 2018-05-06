@@ -16,6 +16,7 @@
 import socket
 import os
 import sys
+import argparse
 
 # Gloabl Variables
 hostname = socket.gethostname()
@@ -23,6 +24,8 @@ name_list = {}
 computer_list_file = "/tmp/computer_names.txt"
 domain = "domain"
 ou = "CN=Computers,DC=domain"
+ad_user = ""
+ad_password = ""
 
 # Load and format computer list
 def load_hostname():
@@ -52,6 +55,28 @@ def change_hostname(name):
 #############################################################
 # Main Section of the script                                #
 #############################################################
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--aduser", help="Enter your domain admin account or service account")
+parser.add_argument("--adpassword", help="Enter your domain admin or service account password")
+args = parser.parse_args()
+
+# Check if ad_user is entered or exit
+if args.aduser:
+	ad_user = args.aduser
+elif ad_user != "":
+	print "AD Account: " + ad_user
+else:
+	sys.exit("Please enter a username")
+
+# Check if ad_password is entered
+if args.adpassword:
+	ad_password = args.adpassword
+elif ad_password != "":
+	print "Password stored..."
+else:
+	sys.exit("No password was entered")
 
 # Load the file
 load_hostname()
