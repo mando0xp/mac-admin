@@ -89,11 +89,11 @@ load_hostname()
 if hostname in name_list:
 	new_hostname = name_list.get(hostname)
 	# print "Unbinding from AD..."
-	# unbind(ad_service,password)
+	# unbind(ad_user,ad_password)
 	print "Computer exists, changing name to " + new_hostname
 	change_hostname(new_hostname)
 	# print "Binding to AD..."
-	# bind(new_hostname,ad_service,password)
+	# bind(new_hostname,ad_user,ad_password)
 # Exit with message if the computer name is not in the list
 else:
 	sys.exit("Computer does not exist")
