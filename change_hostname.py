@@ -13,36 +13,42 @@
 ####################################################################
 
 # Import Python modules
-import socket
-import os
-import sys
-import argparse
+import socket, os, sys,argparse, objc, csv
+from Foundation import NSBundle
+
+IOKit_bundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
+
+functions = [("IOServiceGetMatchingService", b"II@"),
+             ("IOServiceMatching", b"@*"),
+             ("IORegistryEntryCreateCFProperty", b"@I@@I"),
+            ]
+
+objc.loadBundleFunctions(IOKit_bundle, globals(), functions)
 
 # Gloabl Variables
-hostname = socket.gethostname()
+serialnumber = ''
 name_list = {}
-computer_list_file = "/tmp/computer_names.txt"
+computer_list_file = "/tmp/computernames.csv"
+new_computer_list_file = "/tmp/newcomputernames.csv"
 domain = "domain"
 ou = "CN=Computers,DC=domain"
 ad_user = ""
 ad_password = ""
 
-# Load and format computer list
-def load_hostname():
-	file = open(computer_list_file, "r")
-	for line in file:
-		name_split = line.split(":")
-		name_key = name_split[0]
-		name_value = name_split[1]
-		name_length_format = len(name_value)-1
-		name_format = name_value[0:name_length_format]
-		name_list[name_key] = name_format
+def io_key(keyname):
+    return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice".encode("utf-8"))), keyname, None, 0)
+
+def get_hardware_serial():
+    return io_key("IOPlatformSerialNumber".encode("utf-8"))
 
 # Change the all computer and hostnames
 def change_hostname(name):
 	os.system("scutil --set HostName " + name)
 	os.system("scutil --set ComputerName " + name)
 	os.system("scutil --set LocalHostName " + name)
+
+def removefiles(listfile,newlistfile):
+	os.system("rm " + listfile + " " + newlistfile)
 
 # # Unbind machine from AD
 # def unbind(username, password)
@@ -79,22 +85,29 @@ else:
 	sys.exit("No password was entered")
 
 # Load the file
-load_hostname()
+with open(computer_list_file, mode='r') as infile:
+    reader = csv.reader(infile)
+    with open(new_computer_list_file, mode='w') as outfile:
+        writer = csv.writer(outfile)
+        name_list = {rows[0]:rows[1] for rows in reader}
+
+serialnumber = get_hardware_serial()
 
 # Print the list of current computer names and associated new names
 # print name_list
 
 # Check if the hostname is in the computer_names.txt
 # Change computer name to new associated computer name
-if hostname in name_list:
-	new_hostname = name_list.get(hostname)
+if serialnumber in name_list:
+	new_hostname = name_list.get(serialnumber)
 	# print "Unbinding from AD..."
 	# unbind(ad_user,ad_password)
 	print "Computer exists, changing name to " + new_hostname
-	change_hostname(new_hostname)
+	# change_hostname(new_hostname)
 	# print "Binding to AD..."
 	# bind(new_hostname,ad_user,ad_password)
 # Exit with message if the computer name is not in the list
 else:
 	sys.exit("Computer does not exist")
 
+removefiles(computer_list_file,new_computer_list_file)
