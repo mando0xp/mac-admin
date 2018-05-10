@@ -103,7 +103,7 @@ if serialnumber in name_list:
 	# print "Unbinding from AD..."
 	# unbind(ad_user,ad_password)
 	print "Computer exists, changing name to " + new_hostname
-	# change_hostname(new_hostname)
+	change_hostname(new_hostname)
 	# print "Binding to AD..."
 	# bind(new_hostname,ad_user,ad_password)
 # Exit with message if the computer name is not in the list
