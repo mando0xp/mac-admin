@@ -34,6 +34,8 @@ domain = "domain"
 ou = "CN=Computers,DC=domain"
 ad_user = ""
 ad_password = ""
+new_ad_user = ""
+new_ad_password = ""
 
 def io_key(keyname):
     return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice".encode("utf-8"))), keyname, None, 0)
