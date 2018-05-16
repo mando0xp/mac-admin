@@ -13,8 +13,11 @@
 ####################################################################
 
 # Import Python modules
-import socket, os, sys,argparse, objc, csv
+
+import socket, os, sys, subprocess, argparse, objc, csv
 from Foundation import NSBundle
+from time import sleep
+
 
 IOKit_bundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
 
@@ -29,13 +32,12 @@ objc.loadBundleFunctions(IOKit_bundle, globals(), functions)
 serialnumber = ''
 name_list = {}
 computer_list_file = "/tmp/computernames.csv"
-new_computer_list_file = "/tmp/newcomputernames.csv"
-domain = "domain"
-ou = "CN=Computers,DC=domain"
-ad_user = ""
-ad_password = ""
-new_ad_user = ""
-new_ad_password = ""
+domain = "nm.nmfco.com"
+ou = "CN=Computers,DC=nm,DC=nmfco,DC=com"
+lvad_user = "lv-it"
+lvad_password = "password"
+nmad_user = "nun8175-nm"
+nmad_password = "Summer68"
 
 def io_key(keyname):
     return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice".encode("utf-8"))), keyname, None, 0)
@@ -49,49 +51,78 @@ def change_hostname(name):
 	os.system("scutil --set ComputerName " + name)
 	os.system("scutil --set LocalHostName " + name)
 
-def removefiles(listfile,newlistfile):
-	os.system("rm " + listfile + " " + newlistfile)
+def removefiles(listfile):
+	os.system("rm " + listfile)
 
-# # Unbind machine from AD
-# def unbind(username, password)
-# 	os.system("dsconfig -f -r -u " + username + " -p " + password)
+# Unbind machine from AD
+def unbind(username, password):
+	os.system("dsconfigad -f -r -u " + username + " -p " + password)
 
-# # Bind machine to AD
-# def bind(computername,username,password)
-# 	os.system("dsconfigad -a " + computername + " -domain " + domain +  " -u " + username + " -p " + password + " -ou " + ou)
+# Bind machine to AD
+def bind(computername,username,password):
+	os.system("dsconfigad -a " + computername + " -domain " + domain +  " -u " + username + " -p " + password + " -ou " + ou)
 
+# Delete old account, move the home directory, and change ownership
+def deleteuser(lvuser):
+	homedir = subprocess.check_output("/usr/bin/dscl . read /Users/" + lvuser + " NFSHomeDirectory | /usr/bin/cut -c 19-", shell=True)
+	os.system("mv " + homedir + " /Users/old_" + lvuser)
+	os.system("dscl . -delete /Users/" + lvuser)
+
+def migrateuser(lvuser,nmuser):
+	os.system("mv /Users/old_" + lvuser + " /Users/" + nmuser)
+	os.system("chown -R " + nmuser + " /Users/" + nmuser)
+	os.system("/System/Library/CoreServices/ManagedClient.app/Contents/Resources/createmobileaccount -n " + nmuser)
+	os.system("dseditgroup -o edit -a " + nmuser + " -t user admin")
 #############################################################
 # Main Section of the script                                #
 #############################################################
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--aduser", help="Enter your domain admin account or service account")
-parser.add_argument("--adpassword", help="Enter your domain admin or service account password")
+parser.add_argument("--lvaduser", help="Enter your LV domain admin account or service account")
+parser.add_argument("--lvadpassword", help="Enter your LV domain admin or service account password")
+parser.add_argument("--nmaduser", help="Enter your NM domain admin account or service account")
+parser.add_argument("--nmadpassword", help="Enter your NM domain admin or service account password")
 args = parser.parse_args()
 
-# Check if ad_user is entered or exit
-if args.aduser:
-	ad_user = args.aduser
-elif ad_user != "":
-	print "AD Account: " + ad_user
+# Check if LV Domain or Service Account is entered or exit
+if args.lvaduser:
+	lvad_user = args.lvaduser
+elif lvad_user != "":
+	print "AD Account: " + lvad_user
 else:
-	sys.exit("Please enter a username")
+	sys.exit("Please enter a LV Domain or Service Account")
 
 # Check if ad_password is entered
-if args.adpassword:
-	ad_password = args.adpassword
-elif ad_password != "":
+if args.lvadpassword:
+	lvad_password = args.lvadpassword
+elif lvad_password != "":
+	print "Password stored..."
+else:
+	sys.exit("No password was entered")
+
+# Check if NM Domain or Service Account is entered or exit
+if args.nmaduser:
+	nmad_user = args.nmaduser
+elif nmad_user != "":
+	print "AD Account: " + nmad_user
+else:
+	sys.exit("Please enter a NM Domain or Service Account")
+
+# Check if ad_password is entered
+if args.nmadpassword:
+	nmad_password = args.nmadpassword
+elif nmad_password != "":
 	print "Password stored..."
 else:
 	sys.exit("No password was entered")
 
 # Load the file
-with open(computer_list_file, mode='r') as infile:
-    reader = csv.reader(infile)
-    with open(new_computer_list_file, mode='w') as outfile:
-        writer = csv.writer(outfile)
-        name_list = {rows[0]:rows[1] for rows in reader}
+reader = csv.reader(open(computer_list_file, 'r'))
+
+for row in reader:
+	k, v, v2, v3 = row
+	name_list[k] = [v, v2, v3]
 
 serialnumber = get_hardware_serial()
 
@@ -101,15 +132,25 @@ serialnumber = get_hardware_serial()
 # Check if the hostname is in the computer_names.txt
 # Change computer name to new associated computer name
 if serialnumber in name_list:
-	new_hostname = name_list.get(serialnumber)
-	# print "Unbinding from AD..."
-	# unbind(ad_user,ad_password)
-	print "Computer exists, changing name to " + new_hostname
-	change_hostname(new_hostname)
-	# print "Binding to AD..."
-	# bind(new_hostname,ad_user,ad_password)
+	name = name_list.get(serialnumber)
+	nmcomp = name[0]
+	lvuser = name[1]
+	nmuser = name[2]
+	print "Unbinding from AD..."
+	unbind(lvad_user,lvad_password)
+	print "Computer exists, changing name to " + nmcomp
+	change_hostname(nmcomp)
+	print "Deleting user " + lvuser + "..."
+	deleteuser(lvuser)
+	print "Binding to AD..."
+	bind(nmcomp,nmad_user,nmad_password)
+	print "Sleep for 20 seconds"
+	sleep(20)
+	print "Moving data to " + nmuser
+	migrateuser(lvuser,nmuser)
+
 # Exit with message if the computer name is not in the list
 else:
 	sys.exit("Computer does not exist")
 
-removefiles(computer_list_file,new_computer_list_file)
+removefiles(computer_list_file)
