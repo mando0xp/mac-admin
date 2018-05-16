@@ -64,8 +64,8 @@ def bind(computername,username,password):
 
 # Delete old account, move the home directory, and change ownership
 def deleteuser(lvuser):
-	homedir = subprocess.check_output("/usr/bin/dscl . read /Users/" + lvuser + " NFSHomeDirectory | /usr/bin/cut -c 19-", shell=True)
-	os.system("mv " + homedir + " /Users/old_" + lvuser)
+	# homedir = subprocess.check_output("/usr/bin/dscl . read /Users/" + lvuser + " NFSHomeDirectory | /usr/bin/cut -c 19-", shell=True)
+	os.system("mv /Users/" + lvuser + " /Users/old_" + lvuser)
 	os.system("dscl . -delete /Users/" + lvuser)
 
 def migrateuser(lvuser,nmuser):
