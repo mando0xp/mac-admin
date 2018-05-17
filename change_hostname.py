@@ -15,7 +15,7 @@
 
 # Import Python modules
 
-import socket, os, sys, subprocess, argparse, objc, csv
+import socket, os, sys, subprocess, objc, csv
 from Foundation import NSBundle
 from time import sleep
 
@@ -77,46 +77,6 @@ def migrateuser(lvuser,nmuser):
 #############################################################
 # Main Section of the script                                #
 #############################################################
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--lvaduser", help="Enter your LV domain admin account or service account")
-parser.add_argument("--lvadpassword", help="Enter your LV domain admin or service account password")
-parser.add_argument("--nmaduser", help="Enter your NM domain admin account or service account")
-parser.add_argument("--nmadpassword", help="Enter your NM domain admin or service account password")
-args = parser.parse_args()
-
-# Check if LV Domain or Service Account is entered or exit
-if args.lvaduser:
-	lvad_user = args.lvaduser
-elif lvad_user != "":
-	print "AD Account: " + lvad_user
-else:
-	sys.exit("Please enter a LV Domain or Service Account")
-
-# Check if ad_password is entered
-if args.lvadpassword:
-	lvad_password = args.lvadpassword
-elif lvad_password != "":
-	print "Password stored..."
-else:
-	sys.exit("No password was entered")
-
-# Check if NM Domain or Service Account is entered or exit
-if args.nmaduser:
-	nmad_user = args.nmaduser
-elif nmad_user != "":
-	print "AD Account: " + nmad_user
-else:
-	sys.exit("Please enter a NM Domain or Service Account")
-
-# Check if ad_password is entered
-if args.nmadpassword:
-	nmad_password = args.nmadpassword
-elif nmad_password != "":
-	print "Password stored..."
-else:
-	sys.exit("No password was entered")
 
 # Load the file
 reader = csv.reader(open(computer_list_file, 'r'))
