@@ -135,7 +135,7 @@ if serialnumber in name_list:
 	name = name_list.get(serialnumber)
 	nmcomp = name[0]
 	lvuser = name[1]
-	nmuser = name[2]
+	nmuser = name[2].upper()
 	print "Unbinding from AD..."
 	unbind(lvad_user,lvad_password)
 	print "Computer exists, changing name to " + nmcomp
