@@ -15,9 +15,10 @@
 
 # Import Python modules
 
-import socket, os, sys, subprocess, objc, csv
+import socket, os, sys, subprocess, objc, csv, platform
 from Foundation import NSBundle
 from time import sleep
+from distutils.version import StrictVersion
 
 
 IOKit_bundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
@@ -32,13 +33,12 @@ objc.loadBundleFunctions(IOKit_bundle, globals(), functions)
 # Gloabl Variables
 serialnumber = ''
 name_list = {}
-computer_list_file = "/tmp/computernames.csv"
-domain = "nm.nmfco.com"
-ou = "CN=Computers,DC=nm,DC=nmfco,DC=com"
-lvad_user = "lv-it"
-lvad_password = "password"
-nmad_user = "nun8175-nm"
-nmad_password = "Summer68"
+computer_list_file = ""
+domain = ""
+ou = ""
+ad_user = ""
+ad_password = ""
+osver = platform.mac_ver()[0]
 
 def io_key(keyname):
     return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice".encode("utf-8"))), keyname, None, 0)
@@ -46,34 +46,67 @@ def io_key(keyname):
 def get_hardware_serial():
     return io_key("IOPlatformSerialNumber".encode("utf-8"))
 
+def admincheck(user):
+    global adminstatus
+    adminstatus = os.system("dscl . -read /Groups/admin | grep " + user)
+    if adminstatus == 0:
+        print user + " has admin rights..."
+    else:
+        print user + " does not have admin rights..."
+
 # Change the all computer and hostnames
 def change_hostname(name):
-	os.system("scutil --set HostName " + name)
-	os.system("scutil --set ComputerName " + name)
-	os.system("scutil --set LocalHostName " + name)
+    print "Changing computer name to " + name + "..."
+    os.system("scutil --set HostName " + name)
+    os.system("scutil --set ComputerName " + name)
+    os.system("scutil --set LocalHostName " + name)
 
 def removefiles(listfile):
-	os.system("rm " + listfile)
+    print "Removing computernames.csv..."
+    os.system("rm " + listfile)
 
 # Unbind machine from AD
 def unbind(username, password):
-	os.system("dsconfigad -f -r -u " + username + " -p " + password)
+    print "Unbinding from AD..."
+    os.system("dsconfigad -f -r -u " + username + " -p " + password)
 
 # Bind machine to AD
-def bind(computername,username,password):
-	os.system("dsconfigad -a " + computername + " -domain " + domain +  " -u " + username + " -p " + password + " -ou " + ou)
+# This will call a custom trigger from JAMF to bind the computer
+def bind():
+    print "Calling JAMF Policy to bind to AD..."
+    os.system("jamf policy -trigger bindtoad")
 
+# Restart opendirectoryd Service	
+def restartdirectory():
+    print "Restarting opendirectoryd service..."
+    os.system("killall opendirectoryd")
+    
 # Delete old account, move the home directory, and change ownership
-def deleteuser(lvuser):
-	# homedir = subprocess.check_output("/usr/bin/dscl . read /Users/" + lvuser + " NFSHomeDirectory | /usr/bin/cut -c 19-", shell=True)
-	os.system("mv /Users/" + lvuser + " /Users/old_" + lvuser)
-	os.system("dscl . -delete /Users/" + lvuser)
+def deleteuser(user):
+    print "Moving home folder..."
+    os.system("mv /Users/" + user + " /Users/old_" + user)
+    print "Deleting user profile..."
+    os.system("dscl . -delete /Users/" + user)
 
-def migrateuser(lvuser,nmuser):
-	os.system("mv /Users/old_" + lvuser + " /Users/" + nmuser)
-	os.system("chown -R " + nmuser + " /Users/" + nmuser)
-	os.system("/System/Library/CoreServices/ManagedClient.app/Contents/Resources/createmobileaccount -n " + nmuser)
-	os.system("dseditgroup -o edit -a " + nmuser + " -t user admin")
+# Rename the home directory to the LAN ID and change the permissions to the LAN ID
+# Create a mobile account
+# Make the user an Admin
+def migrateuser(user,new_user):
+    print "Migrating home folder to LAN ID"
+    os.system("mv /Users/old_" + user + " /Users/" + new_user)
+    print "Changing ownership to the home folder..."
+    os.system("chown -R " + new_user + " /Users/" + new_user)
+    if adminstatus == 0:
+        print user + " is a part of the admin group"
+        print "Adding LAN ID to the Admin group..."
+        os.system("dseditgroup -o edit -a " + new_user + " -t user admin")
+    else:
+        print user + "was not an admin..."
+    if StrictVersion(osver) >= StrictVersion('10.13.4')
+        print "Please continue with manual configuration from creating mobile account..."
+    else:
+        print "Creating mobile account for LAN ID..."
+        os.system("/System/Library/CoreServices/ManagedClient.app/Contents/Resources/createmobileaccount -n " + new_user)
 #############################################################
 # Main Section of the script                                #
 #############################################################
@@ -82,8 +115,8 @@ def migrateuser(lvuser,nmuser):
 reader = csv.reader(open(computer_list_file, 'r'))
 
 for row in reader:
-	k, v, v2, v3 = row
-	name_list[k] = [v, v2, v3]
+    k, v, v2, v3 = row
+    name_list[k] = [v, v2, v3]
 
 serialnumber = get_hardware_serial()
 
@@ -93,25 +126,24 @@ serialnumber = get_hardware_serial()
 # Check if the hostname is in the computer_names.txt
 # Change computer name to new associated computer name
 if serialnumber in name_list:
-	name = name_list.get(serialnumber)
-	nmcomp = name[0]
-	lvuser = name[1]
-	nmuser = name[2].upper()
-	print "Unbinding from AD..."
-	unbind(lvad_user,lvad_password)
-	print "Computer exists, changing name to " + nmcomp
-	change_hostname(nmcomp)
-	print "Deleting user " + lvuser + "..."
-	deleteuser(lvuser)
-	print "Binding to AD..."
-	bind(nmcomp,nmad_user,nmad_password)
-	print "Sleep for 20 seconds"
-	sleep(20)
-	print "Moving data to " + nmuser
-	migrateuser(lvuser,nmuser)
+    name = name_list.get(serialnumber)
+    compname = name[0]
+    user = name[1]
+    new_user = name[2].lower()
+    unbind(ad_user,ad_password)
+    change_hostname(compname)
+    admincheck(user)
+    deleteuser(user)
+    bind()
+    print "Sleep for 20 seconds..."
+    sleep(20)
+    restartdirectory()
+    print "Sleep for 20 seconds..."
+    sleep(20)
+    migrateuser(user,new_user)
 
 # Exit with message if the computer name is not in the list
 else:
-	sys.exit("Computer does not exist")
+    sys.exit("Computer does not exist")
 
 removefiles(computer_list_file)
